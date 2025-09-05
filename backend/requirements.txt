@@ -1,0 +1,8 @@
+Flask==2.0.1
+pymongo==3.11.4
+requests==2.25.1
+python-dotenv==0.17.1
+Flask-JWT-Extended==4.3.1
+Flask-Cors==3.10.9
+google-auth==1.35.0
+backblaze-b2==1.6.0
