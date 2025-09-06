@@ -1,25 +1,34 @@
-from flask import Blueprint, request, jsonify
+from fastapi import APIRouter, Request, Depends, Query
+from typing import Optional
 from controllers.auth_controller import AuthController
+from dependencies import get_current_user
+from models.user import AuthResponse, AuthUrlResponse, UserResponse, MessageResponse
 
-auth_bp = Blueprint('auth', __name__)
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@auth_bp.route('/login', methods=['POST'])
-def login():
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-    token = AuthController.login(username, password)
-    if token:
-        return jsonify({'token': token}), 200
-    return jsonify({'message': 'Invalid credentials'}), 401
+@router.get("/login", response_model=AuthUrlResponse)
+async def google_login(request: Request):
+    """Initiate Google OAuth2 login"""
+    controller = AuthController()
+    return await controller.google_login_url(request)
 
-@auth_bp.route('/register', methods=['POST'])
-def register():
-    data = request.json
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
-    user = AuthController.register(username, email, password)
-    if user:
-        return jsonify({'message': 'User created successfully'}), 201
-    return jsonify({'message': 'User already exists'}), 409
+@router.get("/callback", response_model=AuthResponse)
+async def google_callback(
+    request: Request,
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None)
+):
+    """Handle Google OAuth2 callback"""
+    controller = AuthController()
+    return await controller.google_callback(code, state, request)
+
+@router.get("/me", response_model=UserResponse)
+async def get_profile(current_user: dict = Depends(get_current_user)):
+    """Get current user profile"""
+    controller = AuthController()
+    return await controller.get_user_profile(current_user)
+
+@router.post("/logout", response_model=MessageResponse)
+async def logout():
+    """Logout endpoint (client should delete JWT token)"""
+    return {"message": "Logged out successfully. Please delete your token."}

@@ -1,27 +1,58 @@
-from flask import Flask
-from config.db import initialize_db
-from routes.auth import auth_routes
-from routes.users import user_routes
-from routes.events import event_routes
-from routes.files import file_routes
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 def create_app():
-    app = Flask(__name__)
+    """
+    Application factory pattern
+    """
+    app = FastAPI(
+        title="Club Event Storage API",
+        description="FastAPI backend with Google OAuth2 and JWT authentication",
+        version="1.0.0"
+    )
+
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000", "http://127.0.0.1:8000"],  # Include local origins
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Add session middleware
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=os.getenv("SESSION_SECRET_KEY", "your-default-secret-key-change-in-production"),
+        max_age=3600,  # 1 hour
+        same_site='lax',  # Allow cross-site requests for OAuth
+        https_only=False  # Set to True in production with HTTPS
+    )
+
+    # Include routers
+    from routes.auth import router as auth_router
     
-    # Load configuration from environment variables
-    app.config.from_envvar('APP_SETTINGS', silent=True)
+    app.include_router(auth_router)
 
-    # Initialize the database
-    initialize_db(app)
+    @app.get("/")
+    async def root():
+        return {"message": "Club Event Storage API - FastAPI Version"}
 
-    # Register routes
-    app.register_blueprint(auth_routes)
-    app.register_blueprint(user_routes)
-    app.register_blueprint(event_routes)
-    app.register_blueprint(file_routes)
+    @app.get("/health")
+    async def health():
+        return {"status": "healthy"}
 
     return app
 
-if __name__ == '__main__':
-    app = create_app()
-    app.run(host='0.0.0.0', port=5000)
+# Create the app instance for uvicorn
+app = create_app()
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
