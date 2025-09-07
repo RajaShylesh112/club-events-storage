@@ -1,31 +1,30 @@
-from flask import Blueprint, request, jsonify
-from controllers.auth_controller import AuthController
-from controllers.user_controller import UserController
+from fastapi import APIRouter, Depends, HTTPException, status, Body
+from pydantic import BaseModel
+from controllers.user_controller import get_all_users, update_user_role
+from dependencies import get_current_user
 
-users_bp = Blueprint('users', __name__)
+router = APIRouter(prefix="/users", tags=["Users"])
 
-@users_bp.route('/users/<user_id>', methods=['GET'])
-def get_user(user_id):
-    user = UserController.get_user(user_id)
-    if user:
-        return jsonify(user), 200
-    return jsonify({'message': 'User not found'}), 404
+def is_admin(user):
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins only")
 
-@users_bp.route('/users/<user_id>', methods=['PUT'])
-def update_user(user_id):
-    data = request.json
-    updated_user = UserController.update_user(user_id, data)
-    if updated_user:
-        return jsonify(updated_user), 200
-    return jsonify({'message': 'User not found or update failed'}), 404
+class RoleUpdateRequest(BaseModel):
+    role: str
 
-@users_bp.route('/users', methods=['GET'])
-def get_all_users():
-    users = UserController.get_all_users()
-    return jsonify(users), 200
+@router.get("/", response_model=list)
+async def get_all_users_route(current_user: dict = Depends(get_current_user)):
+    is_admin(current_user)
+    return get_all_users()
 
-@users_bp.route('/users', methods=['POST'])
-def create_user():
-    data = request.json
-    new_user = UserController.create_user(data)
-    return jsonify(new_user), 201
+@router.patch("/{user_id}/role")
+async def update_user_role_route(user_id: str, data: RoleUpdateRequest = Body(...), current_user: dict = Depends(get_current_user)):
+    is_admin(current_user)
+    if data.role not in ["admin", "user", "core_member"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    result = update_user_role(user_id, data.role)
+    if result == "admin_locked":
+        raise HTTPException(status_code=403, detail="Cannot change role of admin user")
+    if not result:
+        raise HTTPException(status_code=404, detail="User not found")
+    return result

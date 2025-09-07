@@ -36,9 +36,13 @@ def create_app():
     )
 
     # Include routers
+    from routes.users import router as users_router
     from routes.auth import router as auth_router
+    from routes.events import router as events_router
     
     app.include_router(auth_router)
+    app.include_router(users_router)
+    app.include_router(events_router)
 
     @app.get("/")
     async def root():

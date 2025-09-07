@@ -7,6 +7,7 @@ from config.db import get_db_connection
 from config.jwt_config import create_jwt_token, verify_jwt_token
 from services.google_oauth import GoogleOAuthService
 from models.user import User
+from passlib.hash import bcrypt
 
 class AuthController:
     def __init__(self):
@@ -149,3 +150,62 @@ class AuthController:
             user_data["_id"] = result.inserted_id
         
         return user_data
+    
+    async def register_user(self, data):
+        """Register a new user with name, email, password"""
+        # Check if user already exists
+        existing = self.db.users.find_one({"email": data.email})
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists"
+            )
+        # Hash password
+        hashed_password = bcrypt.hash(data.password)
+        now = datetime.utcnow().isoformat()
+        user_doc = {
+            "name": data.name,
+            "email": data.email,
+            "role": "user",
+            "google_sub": "",
+            "created_at": now,
+            "updated_at": now,
+            "password": hashed_password,
+            "picture": ""
+        }
+        result = self.db.users.insert_one(user_doc)
+        user_doc["_id"] = result.inserted_id
+        return {
+            "id": str(user_doc["_id"]),
+            "name": user_doc["name"],
+            "email": user_doc["email"],
+            "picture": user_doc["picture"],
+            "role": user_doc["role"],
+            "created_at": user_doc["created_at"]
+        }
+
+    async def password_login(self, data):
+        """Login with email and password"""
+        user = self.db.users.find_one({"email": data.email})
+        if not user or not user.get("password"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+        if not bcrypt.verify(data.password, user["password"]):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+        token = create_jwt_token(user)
+        return {
+            "token": token,
+            "user": {
+                "id": str(user["_id"]),
+                "name": user["name"],
+                "email": user["email"],
+                "picture": user.get("picture", ""),
+                "role": user.get("role", "user"),
+                "created_at": user.get("created_at")
+            }
+        }
