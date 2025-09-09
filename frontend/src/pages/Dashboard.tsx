@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
+import { useLocation, useNavigate } from "react-router-dom";
+import api from "../lib/axios";
+import { useAuth } from "../lib/auth";
 import { 
   Calendar, 
   FileText, 
@@ -11,7 +14,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Loader2
 } from "lucide-react";
 
 interface DashboardStats {
@@ -19,6 +23,14 @@ interface DashboardStats {
   activeProposals: number;
   archivedEvents: number;
   totalUsers: number;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  picture?: string;
 }
 
 const Dashboard = () => {
@@ -29,7 +41,55 @@ const Dashboard = () => {
     archivedEvents: 156,
     totalUsers: 342
   });
-
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  
+  // Memoize fetchUserProfile to include it in dependency array
+  const fetchUserProfile = useCallback(async (token: string) => {
+    try {
+      const response = await api.get('/auth/me');
+      const userData = response.data;
+      
+      // Store user data and complete login
+      login(token, userData);
+      
+      if (userData?.role) {
+        setUserRole(userData.role);
+      }
+      
+      // Remove query parameters from URL
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      console.error('Failed to fetch user profile:', err);
+      setAuthError('Authentication failed. Please try again.');
+      setIsAuthenticating(false);
+      
+      // Redirect to login on error
+      localStorage.removeItem('auth_token');
+      navigate('/login');
+    }
+  }, [login, navigate]);
+  
+  // This dashboard component doesn't need to handle tokens from URL
+  // That's now handled by the AuthCallback component
+  useEffect(() => {
+    // Just check if we have a token in localStorage 
+    const token = localStorage.getItem('auth_token');
+    
+    // This is just for demonstration purposes - checking if auth token exists
+    if (token) {
+      // User should already be logged in via AuthCallback
+      // Just update the user role for dashboard UI
+      const role = localStorage.getItem('userRole') || 'member';
+      setUserRole(role);
+    }
+  }, []);
+  
+  // Get user role from localStorage as fallback
   useEffect(() => {
     const role = localStorage.getItem("userRole") || "member";
     setUserRole(role);
@@ -296,7 +356,7 @@ const Dashboard = () => {
     switch (userRole) {
       case "admin":
         return <AdminDashboard />;
-      case "core":
+      case "core_member":
         return <CoreMemberDashboard />;
       default:
         return <MemberDashboard />;
@@ -308,8 +368,13 @@ const Dashboard = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {userRole === "admin" ? "Administrator" : 
-                         userRole === "core" ? "Core Member" : "Member"}
+            Welcome back, {isAuthenticating ? 
+              <span className="inline-flex items-center">
+                <Loader2 className="animate-spin h-5 w-5 mr-2" /> 
+                Authenticating...
+              </span> :
+              userRole === "admin" ? "Administrator" : 
+              userRole === "core_member" ? "Core Member" : "Member"}
           </h1>
           <p className="text-muted-foreground">
             Here's what's happening with your events today.

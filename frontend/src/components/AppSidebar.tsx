@@ -8,7 +8,8 @@ import {
   Users,
   Settings,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  Code
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -27,6 +28,7 @@ import {
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { useAuth } from "../lib/auth";
 import collegeLogo from "../assets/college-logo.png";
 
 // CSS overrides for sidebar dark mode
@@ -39,6 +41,7 @@ const menuItems = [
   { title: "Proposals", url: "/proposals", icon: FileText },
   { title: "Archive", url: "/archive", icon: Archive },
   { title: "Profile", url: "/profile", icon: User },
+  { title: "API Demo", url: "/api-demo", icon: Code },
 ];
 
 const adminItems = [
@@ -53,8 +56,9 @@ export function AppSidebar() {
   const currentPath = location.pathname;
   const [adminExpanded, setAdminExpanded] = useState(false);
   
-  // Get user role from localStorage
-  const userRole = localStorage.getItem("userRole") || "member";
+  // Get user from auth context
+  const { user, logout } = useAuth();
+  const userRole = user?.role || localStorage.getItem("userRole") || "member";
   
   const collapsed = state === "collapsed";
 
@@ -66,9 +70,13 @@ export function AppSidebar() {
     document.documentElement.style.setProperty('--sidebar-border', '#27272a');     // zinc-800
   }, []);
   
-  const handleLogout = () => {
-    localStorage.removeItem("userRole");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   const isActive = (path: string) => currentPath === path;
@@ -83,7 +91,7 @@ export function AppSidebar() {
   const getRoleBadge = () => {
     const badges = {
       admin: { label: "Admin", color: "bg-zinc-800 text-destructive border-zinc-700" },
-      core: { label: "Core", color: "bg-zinc-800 text-warning border-zinc-700" },
+      core_member: { label: "Core", color: "bg-zinc-800 text-warning border-zinc-700" },
       member: { label: "Member", color: "bg-zinc-800 text-success border-zinc-700" }
     };
     return badges[userRole as keyof typeof badges] || badges.member;
@@ -177,15 +185,20 @@ export function AppSidebar() {
       <SidebarFooter className="!border-t !border-zinc-800 p-4 !bg-zinc-900">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 shadow-card hover-lift">
-            <AvatarFallback className="!bg-zinc-800 !text-zinc-100 text-sm font-bold">
-              {userRole.charAt(0).toUpperCase()}
-            </AvatarFallback>
+            {user?.picture ? (
+              <img src={user.picture} alt={user.name} className="h-full w-full object-cover" />
+            ) : (
+              <AvatarFallback className="!bg-zinc-800 !text-zinc-100 text-sm font-bold">
+                {user?.name ? user.name.charAt(0).toUpperCase() : userRole.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            )}
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0 animate-fade-in">
               <p className="text-sm font-semibold text-zinc-100 truncate">
-                {userRole === "admin" ? "System Admin" : 
-                 userRole === "core" ? "Event Coordinator" : "Participant"}
+                {user ? user.name : 
+                 userRole === "admin" ? "System Admin" : 
+                 userRole === "core_member" ? "Event Coordinator" : "Participant"}
               </p>
               <Button
                 variant="ghost"

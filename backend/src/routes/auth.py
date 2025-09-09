@@ -16,21 +16,33 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-@router.get("/login", response_model=AuthUrlResponse)
-async def google_login(request: Request):
-    """Initiate Google OAuth2 login"""
+@router.get("/login")
+async def google_login(request: Request, redirect_uri: str = Query("http://localhost:5173/auth-callback")):
+    """
+    Initiate Google OAuth2 login
+    
+    Frontend calls this endpoint, which redirects to Google.
+    After Google authentication, it redirects back to our backend /auth/callback,
+    which then redirects to the frontend with a token.
+    """
     controller = AuthController()
-    return await controller.google_login_url(request)
+    auth_url = await controller.google_login_url(request, redirect_uri)
+    return controller.redirect_to_google(auth_url)
 
-@router.get("/callback", response_model=AuthResponse)
+@router.get("/callback")
 async def google_callback(
     request: Request,
     code: Optional[str] = Query(None),
     state: Optional[str] = Query(None)
 ):
-    """Handle Google OAuth2 callback"""
+    """
+    Handle Google OAuth2 callback (internal endpoint)
+    
+    Google redirects here after authentication.
+    This endpoint creates a JWT token and redirects to the frontend.
+    """
     controller = AuthController()
-    return await controller.google_callback(code, state, request)
+    return await controller.handle_google_callback(code, state, request)
 
 @router.get("/me", response_model=UserResponse)
 async def get_profile(current_user: dict = Depends(get_current_user)):

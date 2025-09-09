@@ -1,4 +1,5 @@
-from fastapi import HTTPException, status, Request
+from fastapi import HTTPException, status, Request, Response
+from fastapi.responses import RedirectResponse
 from datetime import datetime
 from bson import ObjectId
 import secrets
@@ -8,22 +9,30 @@ from config.jwt_config import create_jwt_token, verify_jwt_token
 from services.google_oauth import GoogleOAuthService
 from models.user import User
 from passlib.hash import bcrypt
+from urllib.parse import urlencode
 
 class AuthController:
     def __init__(self):
         self.db = get_db_connection()
         self.google_oauth = GoogleOAuthService()
     
-    async def google_login_url(self, request: Request):
-        """Generate Google OAuth2 login URL"""
+    async def google_login_url(self, request: Request, frontend_redirect_uri: str = None):
+        """Generate Google OAuth2 login URL and store frontend redirect URI"""
         state = secrets.token_urlsafe(32)
-        # Store state in session (you might want to use Redis or database for production)
+        # Store state and frontend redirect URI in session
         request.session['oauth_state'] = state
+        if frontend_redirect_uri:
+            request.session['frontend_redirect_uri'] = frontend_redirect_uri
+        
         auth_url = self.google_oauth.get_auth_url(state=state)
-        return {"auth_url": auth_url}
+        return auth_url
     
-    async def google_callback(self, code: str, state: str, request: Request):
-        """Handle Google OAuth2 callback"""
+    def redirect_to_google(self, auth_url: str):
+        """Redirect to Google OAuth login page"""
+        return RedirectResponse(url=auth_url, status_code=302)
+    
+    async def handle_google_callback(self, code: str, state: str, request: Request):
+        """Handle Google OAuth2 callback and redirect to frontend"""
         if not code:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -65,19 +74,64 @@ class AuthController:
             # Create JWT token
             jwt_token = create_jwt_token(user_data)
             
+            # Get frontend redirect URI - default to dashboard
+            frontend_uri = request.session.get('frontend_redirect_uri', "http://localhost:8080/dashboard")
+            
             # Clean up session
             if 'oauth_state' in request.session:
                 del request.session['oauth_state']
+            if 'frontend_redirect_uri' in request.session:
+                del request.session['frontend_redirect_uri']
             
-            return {
-                "token": jwt_token,
-                "user": {
-                    "id": str(user_data["_id"]),
-                    "name": user_data["name"],
-                    "email": user_data["email"],
-                    "picture": user_data.get("picture", "")
-                }
+            # User object to pass to frontend
+            user = {
+                "id": str(user_data["_id"]),
+                "name": user_data["name"],
+                "email": user_data["email"],
+                "picture": user_data.get("picture", ""),
+                "role": user_data.get("role", "user")
             }
+            
+            import json
+            
+            # Add token and user to query params for the frontend
+            query_params = {
+                "token": jwt_token,
+                "user": json.dumps(user)  # Convert user object to proper JSON string
+            }
+            
+            redirect_url = f"{frontend_uri}?{urlencode(query_params)}"
+            
+            # Create response that redirects to frontend
+            response = RedirectResponse(url=redirect_url, status_code=302)
+            
+            # Set HTTP-only cookie with token (more secure than URL params)
+            response.set_cookie(
+                key="auth_token",
+                value=jwt_token,
+                httponly=True,  # Not accessible via JavaScript
+                max_age=7 * 24 * 3600,  # 1 week
+                secure=False,  # Set to True in production with HTTPS
+                samesite="lax"
+            )
+            
+            return response
+            
+        except Exception as e:
+            # Redirect to frontend with error
+            frontend_uri = request.session.get('frontend_redirect_uri', "http://localhost:5173/auth-callback")
+            error_params = {
+                "error": f"Authentication failed: {str(e)}"
+            }
+            redirect_url = f"{frontend_uri}?{urlencode(error_params)}"
+            
+            # Clean up session
+            if 'oauth_state' in request.session:
+                del request.session['oauth_state']
+            if 'frontend_redirect_uri' in request.session:
+                del request.session['frontend_redirect_uri']
+                
+            return RedirectResponse(url=redirect_url, status_code=302)
             
         except HTTPException:
             raise

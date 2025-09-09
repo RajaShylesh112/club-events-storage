@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Avatar, AvatarFallback } from "../components/ui/avatar";
+import { Separator } from "../components/ui/separator";
+import { useAuth } from "../lib/auth";
 import { 
   User, 
   Mail, 
@@ -39,11 +40,11 @@ interface ActivityLog {
 }
 
 const Profile = () => {
-  const [userRole, setUserRole] = useState<string>("member");
+  const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({
-    name: "John Doe",
-    email: "john.doe@college.edu",
+    name: "Loading...",
+    email: "Loading...",
     role: "member",
     department: "Computer Science",
     joinDate: "September 2023",
@@ -86,17 +87,25 @@ const Profile = () => {
     }
   ];
 
+  // Update profile when user data changes
   useEffect(() => {
-    const role = localStorage.getItem("userRole") || "member";
-    setUserRole(role);
-    setProfile(prev => ({ ...prev, role }));
-    setEditableProfile(prev => ({ ...prev, role }));
-  }, []);
+    if (user) {
+      const updatedProfile = {
+        ...profile,
+        name: user.name || "No Name",
+        email: user.email || "No Email",
+        role: user.role || "member",
+      };
+      
+      setProfile(updatedProfile);
+      setEditableProfile(updatedProfile);
+    }
+  }, [user, profile]);
 
   const getRoleBadge = (role: string) => {
     const badges = {
       admin: { label: "Administrator", color: "bg-destructive/10 text-destructive", icon: "👑" },
-      core: { label: "Core Member", color: "bg-warning/10 text-warning", icon: "⭐" },
+      core_member: { label: "Core Member", color: "bg-warning/10 text-warning", icon: "⭐" },
       member: { label: "Member", color: "bg-success/10 text-success", icon: "👤" }
     };
     return badges[role as keyof typeof badges] || badges.member;
@@ -112,10 +121,10 @@ const Profile = () => {
     setIsEditing(false);
   };
 
-  const badge = getRoleBadge(userRole);
+  const badge = getRoleBadge(profile.role);
 
   const getStatsForRole = () => {
-    switch (userRole) {
+    switch (profile.role) {
       case "admin":
         return [
           { label: "Total Events Managed", value: "24", icon: Calendar },
@@ -123,7 +132,7 @@ const Profile = () => {
           { label: "Users Managed", value: "342", icon: User },
           { label: "System Uptime", value: "99.9%", icon: Activity }
         ];
-      case "core":
+      case "core_member":
         return [
           { label: "Proposals Created", value: "8", icon: FileText },
           { label: "Events Organized", value: "12", icon: Calendar },

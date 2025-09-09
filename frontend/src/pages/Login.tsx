@@ -1,27 +1,100 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "../components/ui/button";
+import { Card, CardContent, CardHeader } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Separator } from "../components/ui/separator";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Github } from "lucide-react";
-import collegeLogo from "@/assets/college-logo.png";
+import { AlertCircle, Eye, EyeOff, Github, Loader2 } from "lucide-react";
+import { useAuth } from "../lib/auth";
+import collegeLogo from "../assets/college-logo.png";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { loginWithPassword, register, initiateGoogleLogin } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Form states
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleLogin = (role: string) => {
+    // For demo mode only
     localStorage.setItem("userRole", role);
     navigate("/dashboard");
   };
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Demo login as member by default
-    handleLogin("member");
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      if (isDemo) {
+        // Demo login as member by default
+        handleLogin("member");
+        return;
+      }
+      
+      if (isRegistering) {
+        // Registration validation
+        if (password !== confirmPassword) {
+          setError("Passwords do not match");
+          return;
+        }
+        
+        if (password.length < 6) {
+          setError("Password must be at least 6 characters");
+          return;
+        }
+        
+        // Register new user
+        await register(name, email, password);
+        navigate("/dashboard");
+      } else {
+        // Regular login with password
+        await loginWithPassword(email, password);
+        navigate("/dashboard");
+      }
+    } catch (err) {
+      console.error(isRegistering ? "Registration error:" : "Login error:", err);
+      setError(err instanceof Error ? err.message : 
+        isRegistering ? "Registration failed. Please try again." : 
+        "Login failed. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Basic client-side validation
+      if (!name || !email || !password || password !== confirmPassword) {
+        setError("Please fill in all fields and ensure passwords match.");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Register the user
+      await register(name, email, password);
+      setIsRegistering(false); // Switch to login mode
+      setError("Registration successful! You can now log in.");
+    } catch (err) {
+      console.error("Registration error:", err);
+      setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -53,8 +126,33 @@ const Login = () => {
           </CardHeader>
           
           <CardContent className="space-y-6">
+            {error && (
+              <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex items-center">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                {error}
+              </div>
+            )}
+            
             {!isDemo ? (
               <form onSubmit={handleEmailLogin} className="space-y-4">
+                {/* Name field - only for registration */}
+                {isRegistering && (
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-sm font-medium">
+                      Full Name
+                    </Label>
+                    <Input
+                      id="name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="John Doe"
+                      className="h-10 transition-all duration-200 focus:scale-105"
+                      required={isRegistering}
+                    />
+                  </div>
+                )}
+                
                 {/* Email field */}
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-sm font-medium">
@@ -63,6 +161,8 @@ const Login = () => {
                   <Input
                     id="email"
                     type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@college.edu"
                     className="h-10 transition-all duration-200 focus:scale-105"
                     required
@@ -78,6 +178,8 @@ const Login = () => {
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
                       className="h-10 pr-10 transition-all duration-200 focus:scale-105"
                       required
@@ -98,13 +200,57 @@ const Login = () => {
                   </div>
                 </div>
 
+                {/* Confirm Password - only for registration */}
+                {isRegistering && (
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-sm font-medium">
+                      Confirm Password
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="confirmPassword"
+                        type={showPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm your password"
+                        className="h-10 pr-10 transition-all duration-200 focus:scale-105"
+                        required={isRegistering}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Submit button */}
                 <Button 
                   type="submit" 
                   className="w-full h-10 bg-gradient-primary hover:scale-105 transition-all duration-200"
+                  disabled={isLoading}
                 >
-                  Sign In
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {isRegistering ? 'Creating Account...' : 'Signing In...'}
+                    </>
+                  ) : (
+                    isRegistering ? 'Create Account' : 'Sign In'
+                  )}
                 </Button>
+                
+                {/* Toggle between login and register */}
+                <div className="text-center mt-2">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setIsRegistering(!isRegistering);
+                      setError(null);
+                    }}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    {isRegistering 
+                      ? "Already have an account? Sign In" 
+                      : "Don't have an account? Register"}
+                  </button>
+                </div>
               </form>
             ) : (
               <div className="space-y-3">
@@ -132,7 +278,7 @@ const Login = () => {
                     variant="outline" 
                     size="sm"
                     className="w-full justify-start h-12 hover-lift"
-                    onClick={() => handleLogin("core")}
+                    onClick={() => handleLogin("core_member")}
                   >
                     <div className="w-8 h-8 bg-warning/20 rounded-lg flex items-center justify-center mr-3">
                       <span className="text-warning font-bold text-sm">C</span>
@@ -182,7 +328,16 @@ const Login = () => {
 
             {/* SSO Options */}
             <div className="space-y-2">
-              <Button variant="outline" className="w-full hover-lift" disabled>
+              <Button 
+                variant="outline" 
+                className="w-full hover-lift"
+                onClick={() => {
+                  if (!isDemo) {
+                    // Use the auth context's initiateGoogleLogin function
+                    initiateGoogleLogin();
+                  }
+                }}
+              >
                 <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
