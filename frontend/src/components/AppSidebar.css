@@ -1,0 +1,23 @@
+/* Dark theme overrides for sidebar */
+:root {
+  --sidebar-background: #18181b !important; /* zinc-900 */
+  --sidebar-foreground: #f4f4f5 !important; /* zinc-100 */
+  --sidebar-border: #27272a !important;     /* zinc-800 */
+  --sidebar-accent: #27272a !important;      /* zinc-800 */
+  --sidebar-accent-foreground: #f4f4f5 !important; /* zinc-100 */
+}
+
+/* Direct overrides for sidebar components */
+[data-sidebar="sidebar"] {
+  background-color: #18181b !important;
+  color: #f4f4f5 !important;
+  border-color: #27272a !important;
+}
+
+.sidebar-group-label {
+  color: #a1a1aa !important; /* zinc-400 */
+}
+
+.dark-sidebar .admin-trigger:hover {
+  color: #e4e4e7 !important; /* zinc-200 */
+}
