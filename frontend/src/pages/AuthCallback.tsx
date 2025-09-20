@@ -1,24 +1,48 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { authHelpers, sessionManager } from '../lib/auth';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from "../lib/useAuth";
+import { authApi } from "../lib/api";
 
 const AuthCallback = () => {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading, error } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const { setUser } = useAuth();
 
   useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated) {
-        navigate('/dashboard', { replace: true });
-      } else if (error) {
-        // The error is handled by the component's render logic
-      } else {
-        // If not authenticated and no error, maybe redirect to login
-        navigate('/login', { replace: true });
+    const handleAuth = async () => {
+      try {
+        const token = searchParams.get('token');
+        const errorParam = searchParams.get('error');
+
+        if (errorParam) {
+          setError(errorParam);
+          return;
+        }
+        if (!token) {
+          setError('Authentication failed: Missing token');
+          return;
+        }
+
+        // Store token
+        localStorage.setItem('auth_token', token);
+
+        // Fetch user details
+        const response = await authApi.getProfile();
+        if (response.data) {
+          setUser(response.data);
+          navigate('/dashboard', { replace: true });
+        } else {
+          setError('Failed to fetch user profile');
+        }
+      } catch (err) {
+        setError('Authentication failed. Please try again.');
       }
-    }
-  }, [isAuthenticated, isLoading, error, navigate]);
+    };
+    handleAuth();
+  }, [searchParams, navigate, setUser]);
 
   if (error) {
     return (
