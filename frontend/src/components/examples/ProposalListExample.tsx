@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../lib/auth';
-import api, { Event } from '../../lib/api';
+import { useAuth } from '../../lib/useAuth';
+import { eventsApi, Event } from '../../lib/api';
 
 interface ProposalListProps {
   limit?: number;
@@ -19,8 +19,12 @@ export default function ProposalListExample({ limit = 5 }: ProposalListProps) {
         try {
           setLoading(true);
           // Using our API service to fetch proposals (events with draft status)
-          const fetchedProposals = await api.events.getProposals();
-          setProposals(fetchedProposals);
+          const response = await eventsApi.getAll('pending');
+          if (response.data) {
+            setProposals(response.data);
+          } else {
+            setError(response.error || 'Failed to fetch proposals');
+          }
         } catch (err) {
           console.error('Failed to fetch proposals:', err);
           setError(err instanceof Error ? err.message : 'Unknown error');
@@ -73,10 +77,12 @@ export default function ProposalListExample({ limit = 5 }: ProposalListProps) {
                 className="px-3 py-1 text-sm rounded-md bg-green-500 text-white hover:bg-green-600 transition-colors"
                 onClick={async () => {
                   try {
-                    await api.events.approveEvent(proposal._id);
+                    await eventsApi.approve(proposal._id);
                     // Refresh proposals
-                    const updatedProposals = await api.events.getProposals();
-                    setProposals(updatedProposals);
+                    const response = await eventsApi.getAll('pending');
+                    if (response.data) {
+                      setProposals(response.data);
+                    }
                   } catch (err) {
                     console.error('Failed to approve proposal:', err);
                   }
@@ -90,10 +96,12 @@ export default function ProposalListExample({ limit = 5 }: ProposalListProps) {
                 onClick={async () => {
                   try {
                     if (confirm('Are you sure you want to delete this proposal?')) {
-                      await api.events.deleteEvent(proposal._id);
+                      await eventsApi.delete(proposal._id);
                       // Refresh proposals
-                      const updatedProposals = await api.events.getProposals();
-                      setProposals(updatedProposals);
+                      const response = await eventsApi.getAll('pending');
+                      if (response.data) {
+                        setProposals(response.data);
+                      }
                     }
                   } catch (err) {
                     console.error('Failed to delete proposal:', err);

@@ -4,7 +4,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DashboardLayout } from "./components/DashboardLayout";
-import { AuthProvider, useAuth } from "./lib/auth";
+import { AuthProvider, useAuth } from "./lib/useAuth";
 import { Loader2 } from "lucide-react";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -21,9 +21,9 @@ const queryClient = new QueryClient();
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -42,9 +42,9 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 // Public Route wrapper (for login page)
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

@@ -4,6 +4,7 @@ from controllers.auth_controller import AuthController
 from dependencies import get_current_user
 from models.user import AuthResponse, AuthUrlResponse, UserResponse, MessageResponse
 from pydantic import BaseModel, EmailStr
+import os
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -17,17 +18,19 @@ class LoginRequest(BaseModel):
     password: str
 
 @router.get("/login")
-async def google_login(request: Request, redirect_uri: str = Query("http://localhost:5173/auth-callback")):
+async def google_login(request: Request, redirect_uri: str = Query(None)):
     """
-    Initiate Google OAuth2 login
+    Initiate Google OAuth2 login and return Google OAuth URL
     
-    Frontend calls this endpoint, which redirects to Google.
-    After Google authentication, it redirects back to our backend /auth/callback,
-    which then redirects to the frontend with a token.
+    This endpoint returns the Google OAuth URL for the frontend to redirect to.
     """
+    # Always use the env variable if not provided
+    redirect_uri = redirect_uri or os.getenv("GOOGLE_REDIRECT_URI")
+    if not redirect_uri:
+        raise HTTPException(status_code=500, detail="GOOGLE_REDIRECT_URI is not set in the environment.")
     controller = AuthController()
     auth_url = await controller.google_login_url(request, redirect_uri)
-    return controller.redirect_to_google(auth_url)
+    return {"auth_url": auth_url}
 
 @router.get("/callback")
 async def google_callback(

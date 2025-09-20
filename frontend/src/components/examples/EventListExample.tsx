@@ -2,8 +2,8 @@
  * Example component demonstrating API usage
  */
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../lib/auth';
-import api, { Event } from '../../lib/api';
+import { useAuth } from '../../lib/useAuth';
+import { eventsApi, Event } from '../../lib/api';
 
 interface EventListProps {
   limit?: number;
@@ -23,11 +23,15 @@ export default function EventListExample({ limit = 5 }: EventListProps) {
           setLoading(true);
           // Using our API service to fetch events
           // Only fetch approved events, not drafts or archived
-          const fetchedEvents = await api.events.getAllEvents({ 
-            status: 'approved',
-            limit: limit.toString()
-          });
-          setEvents(fetchedEvents);
+          const response = await eventsApi.getAll('approved');
+          if (response.data) {
+            const fetchedEvents = response.data;
+            // Apply limit if specified
+            const limitedEvents = limit ? fetchedEvents.slice(0, limit) : fetchedEvents;
+            setEvents(limitedEvents);
+          } else {
+            setError(response.error || 'Failed to fetch events');
+          }
         } catch (err) {
           console.error('Failed to fetch events:', err);
           setError(err instanceof Error ? err.message : 'Unknown error');

@@ -1,63 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../lib/auth';
+import { authHelpers, sessionManager } from '../lib/auth';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from "../lib/useAuth";
+import { authApi } from "../lib/api";
 
 const AuthCallback = () => {
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const { setUser } = useAuth();
 
   useEffect(() => {
     const handleAuth = async () => {
       try {
-        // Get token from URL params
         const token = searchParams.get('token');
-        const userParam = searchParams.get('user');
         const errorParam = searchParams.get('error');
 
         if (errorParam) {
-          console.error('Authentication error:', errorParam);
           setError(errorParam);
           return;
         }
-
-        if (!token || !userParam) {
-          setError('Authentication failed: Missing token or user data');
+        if (!token) {
+          setError('Authentication failed: Missing token');
           return;
         }
 
-        // Parse user data
-        let userData;
-        try {
-          // The backend sends JSON as a string
-          userData = JSON.parse(decodeURIComponent(userParam));
-        } catch (e) {
-          console.error('Failed to parse user data:', e, userParam);
-          setError('Authentication failed: Invalid user data format');
-          return;
-        }
-
-        console.log("Successfully parsed user data:", userData);
-        
-        // Store token and user data
-        // Save token in localStorage for API requests
+        // Store token
         localStorage.setItem('auth_token', token);
-        
-        // Use the login function from auth context
-        login(token, userData);
-        
-        // Redirect to dashboard
-        navigate('/dashboard', { replace: true });
+
+        // Fetch user details
+        const response = await authApi.getProfile();
+        if (response.data) {
+          setUser(response.data);
+          navigate('/dashboard', { replace: true });
+        } else {
+          setError('Failed to fetch user profile');
+        }
       } catch (err) {
-        console.error('Authentication error:', err);
         setError('Authentication failed. Please try again.');
       }
     };
-
     handleAuth();
-  }, [searchParams, login, navigate]);
+  }, [searchParams, navigate, setUser]);
 
   if (error) {
     return (
