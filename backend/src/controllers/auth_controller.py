@@ -122,14 +122,7 @@ class AuthController:
                 # Redirect to frontend with token in URL (original behavior)
                 frontend_uri = request.session.get('frontend_redirect_uri', "http://localhost:5173/auth-callback")
                 
-                import json
-                query_params = {
-                    "token": jwt_token,
-                    "user": json.dumps(user)
-                }
-                redirect_url = f"{frontend_uri}?{urlencode(query_params)}"
-                
-                response = RedirectResponse(url=redirect_url, status_code=302)
+                response = RedirectResponse(url=frontend_uri, status_code=302)
                 
                 # Set HTTP-only cookie with token
                 response.set_cookie(
