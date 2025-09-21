@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from '../../lib/auth';
-import api, { File as FileModel } from '../../lib/api';
+import { useAuth } from '../../lib/useAuth';
+import { filesApi, File as FileModel } from '../../lib/api';
 
 interface FileListProps {
   eventId?: string; // Optional - if provided, only files for this event will be shown
@@ -18,12 +18,15 @@ export default function FileListExample({ eventId }: FileListProps) {
   const fetchFiles = useCallback(async () => {
     try {
       setLoading(true);
-      // In a real implementation, you would have an API endpoint to get files by event ID
-      // For this example, we'll show a placeholder implementation
-      const response = await fetch(`http://localhost:8000/files${eventId ? `?event_id=${eventId}` : ''}`);
-      if (!response.ok) throw new Error('Failed to fetch files');
-      const fetchedFiles = await response.json();
-      setFiles(fetchedFiles);
+      const response = eventId 
+        ? await filesApi.getByEventId(eventId)
+        : await filesApi.getAll();
+      
+      if (response.data) {
+        setFiles(response.data);
+      } else {
+        setError(response.error || 'Failed to fetch files');
+      }
     } catch (err) {
       console.error('Failed to fetch files:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -45,10 +48,14 @@ export default function FileListExample({ eventId }: FileListProps) {
     setUploading(true);
     
     try {
-      const response = await api.files.uploadFile(file);
-      console.log('File uploaded:', response);
-      // Refresh files list
-      fetchFiles();
+      const response = await filesApi.upload(file, eventId);
+      if (response.data) {
+        console.log('File uploaded:', response.data);
+        // Refresh files list
+        fetchFiles();
+      } else {
+        setError(response.error || 'Upload failed');
+      }
     } catch (err) {
       console.error('Failed to upload file:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -63,9 +70,13 @@ export default function FileListExample({ eventId }: FileListProps) {
   
   const handleDeleteFile = async (fileId: string) => {
     try {
-      await api.files.deleteFile(fileId);
-      // Refresh files list
-      fetchFiles();
+      const response = await filesApi.delete(fileId);
+      if (response.data || !response.error) {
+        // Refresh files list
+        fetchFiles();
+      } else {
+        setError(response.error || 'Delete failed');
+      }
     } catch (err) {
       console.error('Failed to delete file:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import EventListExample from '../components/examples/EventListExample';
 import ProposalListExample from '../components/examples/ProposalListExample';
 import FileListExample from '../components/examples/FileListExample';
-import { useAuth } from '../lib/auth';
+import { useAuth } from '../lib/useAuth';
 
 export default function ApiDemo() {
   const [activeTab, setActiveTab] = useState('events');

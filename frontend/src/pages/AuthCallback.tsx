@@ -1,63 +1,24 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../lib/auth';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from "../lib/useAuth";
 
 const AuthCallback = () => {
-  const [searchParams] = useSearchParams();
-  const { login } = useAuth();
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
+  const { isAuthenticated, isLoading, error } = useAuth();
 
   useEffect(() => {
-    const handleAuth = async () => {
-      try {
-        // Get token from URL params
-        const token = searchParams.get('token');
-        const userParam = searchParams.get('user');
-        const errorParam = searchParams.get('error');
-
-        if (errorParam) {
-          console.error('Authentication error:', errorParam);
-          setError(errorParam);
-          return;
-        }
-
-        if (!token || !userParam) {
-          setError('Authentication failed: Missing token or user data');
-          return;
-        }
-
-        // Parse user data
-        let userData;
-        try {
-          // The backend sends JSON as a string
-          userData = JSON.parse(decodeURIComponent(userParam));
-        } catch (e) {
-          console.error('Failed to parse user data:', e, userParam);
-          setError('Authentication failed: Invalid user data format');
-          return;
-        }
-
-        console.log("Successfully parsed user data:", userData);
-        
-        // Store token and user data
-        // Save token in localStorage for API requests
-        localStorage.setItem('auth_token', token);
-        
-        // Use the login function from auth context
-        login(token, userData);
-        
-        // Redirect to dashboard
+    if (!isLoading) {
+      if (isAuthenticated) {
         navigate('/dashboard', { replace: true });
-      } catch (err) {
-        console.error('Authentication error:', err);
-        setError('Authentication failed. Please try again.');
+      } else if (error) {
+        // The error is handled by the component's render logic
+      } else {
+        // If not authenticated and no error, maybe redirect to login
+        navigate('/login', { replace: true });
       }
-    };
-
-    handleAuth();
-  }, [searchParams, login, navigate]);
+    }
+  }, [isAuthenticated, isLoading, error, navigate]);
 
   if (error) {
     return (

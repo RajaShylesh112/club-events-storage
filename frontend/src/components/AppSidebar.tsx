@@ -28,7 +28,7 @@ import {
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
-import { useAuth } from "../lib/auth";
+import { useAuth } from "../lib/useAuth";
 import collegeLogo from "../assets/college-logo.png";
 
 // CSS overrides for sidebar dark mode

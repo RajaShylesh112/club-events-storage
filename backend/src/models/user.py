@@ -1,11 +1,13 @@
 from typing import Optional, Union
 from bson import ObjectId
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
+from pydantic import ConfigDict
 from datetime import datetime
 
 # Pydantic schemas for API requests/responses
 class UserResponse(BaseModel):
-    id: str
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
     name: str
     email: EmailStr
     picture: Optional[str] = None
@@ -13,7 +15,8 @@ class UserResponse(BaseModel):
     created_at: Optional[str] = None
 
 class AuthResponse(BaseModel):
-    token: str
+    access_token: str
+    token_type: str = "bearer"
     user: UserResponse
 
 class AuthUrlResponse(BaseModel):

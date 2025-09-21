@@ -31,8 +31,29 @@ class AuthController:
         """Redirect to Google OAuth login page"""
         return RedirectResponse(url=auth_url, status_code=302)
     
-    async def handle_google_callback(self, code: str, state: str, request: Request):
-        """Handle Google OAuth2 callback and redirect to frontend"""
+    async def handle_complete_google_login(self, request: Request, frontend_redirect_uri: str = None):
+        """Handle complete Google OAuth flow and return token directly"""
+        try:
+            # Check if we have authorization code from Google
+            code = request.query_params.get('code')
+            state = request.query_params.get('state')
+            
+            if code:
+                # We have a code, process the callback and return JSON
+                return await self.handle_google_callback(code, state, request, return_json=True)
+            else:
+                # No code, initiate OAuth flow
+                auth_url = await self.google_login_url(request, frontend_redirect_uri)
+                return RedirectResponse(url=auth_url, status_code=302)
+                
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Google login failed: {str(e)}"
+            )
+    
+    async def handle_google_callback(self, code: str, state: str, request: Request, return_json: bool = False):
+        """Handle Google OAuth2 callback and redirect to frontend or return JSON"""
         if not code:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -74,9 +95,6 @@ class AuthController:
             # Create JWT token
             jwt_token = create_jwt_token(user_data)
             
-            # Get frontend redirect URI - default to dashboard
-            frontend_uri = request.session.get('frontend_redirect_uri', "http://localhost:8080/dashboard")
-            
             # Clean up session
             if 'oauth_state' in request.session:
                 del request.session['oauth_state']
@@ -85,67 +103,68 @@ class AuthController:
             
             # User object to pass to frontend
             user = {
-                "id": str(user_data["_id"]),
+                "_id": str(user_data["_id"]),
                 "name": user_data["name"],
                 "email": user_data["email"],
                 "picture": user_data.get("picture", ""),
-                "role": user_data.get("role", "user")
+                "role": user_data.get("role", "user"),
+                "created_at": user_data.get("created_at")
             }
             
-            import json
-            
-            # Add token and user to query params for the frontend
-            query_params = {
-                "token": jwt_token,
-                "user": json.dumps(user)  # Convert user object to proper JSON string
-            }
-            
-            redirect_url = f"{frontend_uri}?{urlencode(query_params)}"
-            
-            # Create response that redirects to frontend
-            response = RedirectResponse(url=redirect_url, status_code=302)
-            
-            # Set HTTP-only cookie with token (more secure than URL params)
-            response.set_cookie(
-                key="auth_token",
-                value=jwt_token,
-                httponly=True,  # Not accessible via JavaScript
-                max_age=7 * 24 * 3600,  # 1 week
-                secure=False,  # Set to True in production with HTTPS
-                samesite="lax"
-            )
-            
-            return response
-            
-        except Exception as e:
-            # Redirect to frontend with error
-            frontend_uri = request.session.get('frontend_redirect_uri', "http://localhost:5173/auth-callback")
-            error_params = {
-                "error": f"Authentication failed: {str(e)}"
-            }
-            redirect_url = f"{frontend_uri}?{urlencode(error_params)}"
-            
-            # Clean up session
-            if 'oauth_state' in request.session:
-                del request.session['oauth_state']
-            if 'frontend_redirect_uri' in request.session:
-                del request.session['frontend_redirect_uri']
+            if return_json:
+                # Return JSON response with token and user data
+                return {
+                    "access_token": jwt_token,
+                    "token_type": "bearer",
+                    "user": user
+                }
+            else:
+                # Redirect to frontend with token in URL (original behavior)
+                frontend_uri = request.session.get('frontend_redirect_uri', "http://localhost:5173/auth-callback")
                 
-            return RedirectResponse(url=redirect_url, status_code=302)
+                response = RedirectResponse(url=frontend_uri, status_code=302)
+                
+                # Set HTTP-only cookie with token
+                response.set_cookie(
+                    key="auth_token",
+                    value=jwt_token,
+                    httponly=True,
+                    max_age=7 * 24 * 3600,
+                    secure=False,
+                    samesite="lax"
+                )
+                
+                return response
             
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Authentication failed: {str(e)}"
-            )
+            if return_json:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Authentication failed: {str(e)}"
+                )
+            else:
+                # Redirect to frontend with error
+                frontend_uri = request.session.get('frontend_redirect_uri', "http://localhost:5173/auth-callback")
+                error_params = {
+                    "error": f"Authentication failed: {str(e)}"
+                }
+                redirect_url = f"{frontend_uri}?{urlencode(error_params)}"
+                
+                # Clean up session
+                if 'oauth_state' in request.session:
+                    del request.session['oauth_state']
+                if 'frontend_redirect_uri' in request.session:
+                    del request.session['frontend_redirect_uri']
+                    
+                return RedirectResponse(url=redirect_url, status_code=302)
     
     async def get_user_profile(self, user_data: dict):
         """Get user profile from current user data"""
         try:
             return {
-                "id": str(user_data["_id"]),
+                "_id": str(user_data["_id"]),
                 "name": user_data["name"],
                 "email": user_data["email"],
                 "picture": user_data.get("picture", ""),
@@ -157,6 +176,63 @@ class AuthController:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to get profile: {str(e)}"
+            )
+    
+    async def update_user_profile(self, current_user: dict, data: dict):
+        """Update current user's profile (name, email, picture)"""
+        try:
+            user_id = current_user["_id"]
+            updates: dict = {}
+
+            # Support both dict and Pydantic model instances
+            name = data.get("name") if isinstance(data, dict) else getattr(data, "name", None)
+            email = data.get("email") if isinstance(data, dict) else getattr(data, "email", None)
+            picture = data.get("picture") if isinstance(data, dict) else getattr(data, "picture", None)
+
+            if name is not None and name.strip() != "":
+                updates["name"] = name.strip()
+
+            if email is not None and email != current_user.get("email"):
+                # Ensure email uniqueness
+                existing = self.db.users.find_one({
+                    "email": email,
+                    "_id": {"$ne": user_id}
+                })
+                if existing:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use")
+                updates["email"] = email
+
+            if picture is not None:
+                updates["picture"] = picture
+
+            if not updates:
+                # Nothing to update, return current profile
+                return await self.get_user_profile(current_user)
+
+            updates["updated_at"] = datetime.utcnow().isoformat()
+
+            # Apply update
+            self.db.users.update_one({"_id": user_id}, {"$set": updates})
+
+            # Fetch updated user
+            updated = self.db.users.find_one({"_id": user_id})
+            if not updated:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+            return {
+                "_id": str(updated["_id"]),
+                "name": updated.get("name", ""),
+                "email": updated.get("email", ""),
+                "picture": updated.get("picture", ""),
+                "role": updated.get("role", "user"),
+                "created_at": updated.get("created_at")
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to update profile: {str(e)}"
             )
     
     async def _store_or_update_user(self, user_info):
@@ -230,7 +306,7 @@ class AuthController:
         result = self.db.users.insert_one(user_doc)
         user_doc["_id"] = result.inserted_id
         return {
-            "id": str(user_doc["_id"]),
+            "_id": str(user_doc["_id"]),
             "name": user_doc["name"],
             "email": user_doc["email"],
             "picture": user_doc["picture"],
@@ -253,9 +329,10 @@ class AuthController:
             )
         token = create_jwt_token(user)
         return {
-            "token": token,
+            "access_token": token,
+            "token_type": "bearer",
             "user": {
-                "id": str(user["_id"]),
+                "_id": str(user["_id"]),
                 "name": user["name"],
                 "email": user["email"],
                 "picture": user.get("picture", ""),

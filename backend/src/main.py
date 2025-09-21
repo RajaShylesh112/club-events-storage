@@ -17,23 +17,36 @@ def create_app():
         version="1.0.0"
     )
 
-    # Add CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[
+    # Configure CORS from env or use sane defaults for localhost
+    cors_env = os.getenv("BACKEND_CORS_ORIGINS", "").strip()
+    if cors_env == "*":
+        # Wildcard cannot be used with credentials; disable credentials if using '*'
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=False,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    else:
+        default_origins = [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
-            "http://localhost:5173",  # Vite dev server
-            "http://127.0.0.1:5173",  # Vite dev server
-            "http://localhost:8000",
-            "http://127.0.0.1:8000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
             "http://localhost:8080",
-            "http://127.0.0.1:8080"
-        ],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+            "http://127.0.0.1:8080",
+        ]
+        extra = [o.strip() for o in cors_env.split(",") if o.strip()]
+        allow_origins = default_origins + extra
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=allow_origins,
+            allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     # Add session middleware
     app.add_middleware(

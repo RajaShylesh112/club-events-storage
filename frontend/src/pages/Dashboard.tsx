@@ -1,10 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { useLocation, useNavigate } from "react-router-dom";
-import api from "../lib/axios";
-import { useAuth } from "../lib/auth";
+import { eventsApi, filesApi, usersApi } from "../lib/api";
+import { useAuth } from "../lib/useAuth";
 import { 
   Calendar, 
   FileText, 
@@ -46,54 +46,21 @@ const Dashboard = () => {
   
   const location = useLocation();
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   
-  // Memoize fetchUserProfile to include it in dependency array
-  const fetchUserProfile = useCallback(async (token: string) => {
-    try {
-      const response = await api.get('/auth/me');
-      const userData = response.data;
-      
-      // Store user data and complete login
-      login(token, userData);
-      
-      if (userData?.role) {
-        setUserRole(userData.role);
-      }
-      
-      // Remove query parameters from URL
-      navigate('/dashboard', { replace: true });
-    } catch (err) {
-      console.error('Failed to fetch user profile:', err);
-      setAuthError('Authentication failed. Please try again.');
-      setIsAuthenticating(false);
-      
-      // Redirect to login on error
-      localStorage.removeItem('auth_token');
+  // Get user role from auth context
+  useEffect(() => {
+    if (user?.role) {
+      setUserRole(user.role);
+    }
+  }, [user]);
+  
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
       navigate('/login');
     }
-  }, [login, navigate]);
-  
-  // This dashboard component doesn't need to handle tokens from URL
-  // That's now handled by the AuthCallback component
-  useEffect(() => {
-    // Just check if we have a token in localStorage 
-    const token = localStorage.getItem('auth_token');
-    
-    // This is just for demonstration purposes - checking if auth token exists
-    if (token) {
-      // User should already be logged in via AuthCallback
-      // Just update the user role for dashboard UI
-      const role = localStorage.getItem('userRole') || 'member';
-      setUserRole(role);
-    }
-  }, []);
-  
-  // Get user role from localStorage as fallback
-  useEffect(() => {
-    const role = localStorage.getItem("userRole") || "member";
-    setUserRole(role);
-  }, []);
+  }, [isAuthenticated, authLoading, navigate]);
 
   const AdminDashboard = () => (
     <div className="space-y-6">

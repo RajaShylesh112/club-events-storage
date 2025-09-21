@@ -6,12 +6,12 @@ import { Label } from "../components/ui/label";
 import { Separator } from "../components/ui/separator";
 import { useNavigate } from "react-router-dom";
 import { AlertCircle, Eye, EyeOff, Github, Loader2 } from "lucide-react";
-import { useAuth } from "../lib/auth";
+import { useAuth } from "../lib/useAuth";
 import collegeLogo from "../assets/college-logo.png";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { loginWithPassword, register, initiateGoogleLogin } = useAuth();
+  const { login, register, initiateGoogleLogin } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -59,7 +59,7 @@ const Login = () => {
         navigate("/dashboard");
       } else {
         // Regular login with password
-        await loginWithPassword(email, password);
+        await login(email, password);
         navigate("/dashboard");
       }
     } catch (err) {
