@@ -4,8 +4,6 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { DashboardLayout } from "./components/DashboardLayout";
-import { AuthProvider } from "./lib/auth.tsx";
-import { useAuth } from "./lib/useAuth";
 import { Loader2 } from "lucide-react";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -17,6 +15,37 @@ import NotFound from "./pages/NotFound";
 import EventDetail from "./pages/EventDetail";
 import ApiDemo from "./pages/ApiDemo";
 import AuthCallback from "./pages/AuthCallback";
+import { useAuth } from "./lib/useAuth";
+
+// Simple error boundary to prevent white screen
+import React from "react";
+class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; message?: string }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: unknown) {
+    const message = error instanceof Error ? error.message : "Something went wrong";
+    return { hasError: true, message };
+  }
+  componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
+    console.error("App crashed:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+          <h1 className="text-2xl font-semibold mb-2">An error occurred</h1>
+          <p className="text-muted-foreground mb-4">{this.state.message}</p>
+          <button className="px-4 py-2 rounded bg-primary text-primary-foreground" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const queryClient = new QueryClient();
 
@@ -64,7 +93,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
+    <AppErrorBoundary>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -91,7 +120,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </AuthProvider>
+    </AppErrorBoundary>
   </QueryClientProvider>
 );
 

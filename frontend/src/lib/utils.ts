@@ -241,26 +241,28 @@ export const objectUtils = {
   },
 
   // Check if object is empty
-  isEmpty: (obj: any): boolean => {
-    return Object.keys(obj).length === 0;
+  isEmpty: (obj: Record<string, unknown> | unknown[]): boolean => {
+    if (Array.isArray(obj)) return obj.length === 0;
+    if (obj && typeof obj === "object") return Object.keys(obj as Record<string, unknown>).length === 0;
+    return true;
   },
 
   // Pick specific keys from object
-  pick: <T, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> => {
+  pick: <T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> => {
     const result = {} as Pick<T, K>;
     keys.forEach(key => {
-      if (key in obj) {
-        result[key] = obj[key];
+      if (Object.prototype.hasOwnProperty.call(obj as object, key as PropertyKey)) {
+        (result as Record<string, unknown>)[key as string] = obj[key] as unknown;
       }
     });
     return result;
   },
 
   // Omit specific keys from object
-  omit: <T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> => {
-    const result = { ...obj };
+  omit: <T extends Record<string, unknown>, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> => {
+    const result = { ...obj } as T;
     keys.forEach(key => {
-      delete result[key];
+      delete (result as Record<string, unknown>)[key as string];
     });
     return result;
   },
@@ -269,15 +271,19 @@ export const objectUtils = {
 // Error handling utilities
 export const errorUtils = {
   // Get error message from error object
-  getErrorMessage: (error: any): string => {
+  getErrorMessage: (error: unknown): string => {
     if (typeof error === 'string') return error;
-    if (error?.message) return error.message;
-    if (error?.error) return error.error;
+    if (error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+      return (error as { message: string }).message;
+    }
+    if (error && typeof error === 'object' && 'error' in error && typeof (error as { error?: unknown }).error === 'string') {
+      return (error as { error: string }).error;
+    }
     return 'An unknown error occurred';
   },
 
   // Log error to console
-  logError: (error: any, context?: string): void => {
+  logError: (error: unknown, context?: string): void => {
     const message = errorUtils.getErrorMessage(error);
     console.error(context ? `${context}: ${message}` : message, error);
   },
@@ -286,7 +292,7 @@ export const errorUtils = {
 // Local storage utilities
 export const storageUtils = {
   // Set item in localStorage
-  setItem: (key: string, value: any): void => {
+  setItem: (key: string, value: unknown): void => {
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
@@ -298,10 +304,10 @@ export const storageUtils = {
   getItem: <T>(key: string, defaultValue?: T): T | null => {
     try {
       const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue || null;
+      return item ? (JSON.parse(item) as T) : defaultValue ?? null;
     } catch (error) {
       console.error('Error getting localStorage item:', error);
-      return defaultValue || null;
+      return defaultValue ?? null;
     }
   },
 

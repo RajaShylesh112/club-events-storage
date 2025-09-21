@@ -178,6 +178,63 @@ class AuthController:
                 detail=f"Failed to get profile: {str(e)}"
             )
     
+    async def update_user_profile(self, current_user: dict, data: dict):
+        """Update current user's profile (name, email, picture)"""
+        try:
+            user_id = current_user["_id"]
+            updates: dict = {}
+
+            # Support both dict and Pydantic model instances
+            name = data.get("name") if isinstance(data, dict) else getattr(data, "name", None)
+            email = data.get("email") if isinstance(data, dict) else getattr(data, "email", None)
+            picture = data.get("picture") if isinstance(data, dict) else getattr(data, "picture", None)
+
+            if name is not None and name.strip() != "":
+                updates["name"] = name.strip()
+
+            if email is not None and email != current_user.get("email"):
+                # Ensure email uniqueness
+                existing = self.db.users.find_one({
+                    "email": email,
+                    "_id": {"$ne": user_id}
+                })
+                if existing:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use")
+                updates["email"] = email
+
+            if picture is not None:
+                updates["picture"] = picture
+
+            if not updates:
+                # Nothing to update, return current profile
+                return await self.get_user_profile(current_user)
+
+            updates["updated_at"] = datetime.utcnow().isoformat()
+
+            # Apply update
+            self.db.users.update_one({"_id": user_id}, {"$set": updates})
+
+            # Fetch updated user
+            updated = self.db.users.find_one({"_id": user_id})
+            if not updated:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+            return {
+                "_id": str(updated["_id"]),
+                "name": updated.get("name", ""),
+                "email": updated.get("email", ""),
+                "picture": updated.get("picture", ""),
+                "role": updated.get("role", "user"),
+                "created_at": updated.get("created_at")
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to update profile: {str(e)}"
+            )
+    
     async def _store_or_update_user(self, user_info):
         """Store or update user in MongoDB"""
         google_id = user_info.get("id") or user_info.get("sub")

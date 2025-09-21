@@ -244,3 +244,8 @@ export default {
   tokenRefresh,
   initAuth,
 };
+
+// Re-export AuthContext from the React provider file so imports that resolve to this
+// module (auth.ts) also have access to the AuthContext symbol. This fixes the
+// runtime error when the resolver picks auth.ts over auth.tsx.
+export { AuthContext } from './auth.tsx';

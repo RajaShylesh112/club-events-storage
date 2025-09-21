@@ -1,5 +1,5 @@
 // API configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Types
 export interface User {
@@ -9,6 +9,10 @@ export interface User {
   picture: string;
   role: string;
   created_at: string;
+  // Optional fields that may be present in some responses/schemas
+  google_sub?: string;
+  updated_at?: string;
+  password?: string; // not returned by API for security, included for typing compatibility
 }
 
 export interface Event {
@@ -271,6 +275,14 @@ export const usersApi = {
     return apiRequest<User>(`/users/${userId}/role`, {
       method: 'PATCH',
       body: JSON.stringify({ role }),
+    });
+  },
+
+  // Update current user's profile
+  updateMe: async (data: Partial<Pick<User, 'name' | 'email' | 'picture'>>): Promise<ApiResponse<User>> => {
+    return apiRequest<User>(`/auth/me`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   },
 };

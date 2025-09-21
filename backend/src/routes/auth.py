@@ -17,6 +17,11 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    picture: Optional[str] = None
+
 @router.get("/login")
 async def google_login(request: Request, redirect_uri: str = Query(None)):
     """
@@ -52,6 +57,12 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
     """Get current user profile"""
     controller = AuthController()
     return await controller.get_user_profile(current_user)
+
+@router.patch("/me", response_model=UserResponse)
+async def update_profile(data: UpdateProfileRequest, current_user: dict = Depends(get_current_user)):
+    """Update current user's profile (name/email/picture)"""
+    controller = AuthController()
+    return await controller.update_user_profile(current_user, data)
 
 @router.post("/logout", response_model=MessageResponse)
 async def logout():
